@@ -1,0 +1,70 @@
+#!/bin/bash
+
+echo "Create an entity:"
+curl localhost:1026/v2/entities -s -S -H 'Content-Type: application/json' -d '{
+  "id": "Room1",
+  "type": "Room",
+  "temperature": {
+    "value": 23,
+    "type": "Float"
+  },
+  "pressure": {
+    "value": 720,
+    "type": "Integer"
+  }
+}'
+curl localhost:1026/v2/entities -s -S -H 'Content-Type: application/json' -d '{
+  "id": "Room2",
+  "type": "Room",
+  "temperature": {
+    "value": 23,
+    "type": "Float"
+  },
+  "pressure": {
+    "value": 711,
+    "type": "Integer"
+  }
+}'
+
+curl localhost:1026/v2/entities/Room1?type=Room -s -S -H 'Accept: application/json'
+
+echo "--------------------"
+
+echo "Create a subscription:"
+curl -v localhost:1026/v2/subscriptions -s -S -H 'Content-Type: application/json' -d '{
+  "description": "A subscription to get info about Room1",
+  "subject": {
+    "entities": [
+      {
+        "id": "Room1",
+        "type": "Room"
+      }
+    ],
+    "condition": {
+      "attrs": [
+        "pressure"
+      ]
+    }
+  },
+  "notification": {
+    "http": {
+      "url": "http://localhost:1028/accumulate"
+    },
+    "attrs": [
+      "temperature"
+    ]
+  },
+  "expires": "2040-01-01T14:00:00.00Z"
+}'
+
+echo "--------------------"
+
+echo "Update Room1 value:"
+curl localhost:1026/v2/entities/Room1/attrs/pressure/value -s -S -H 'Content-Type: text/plain' -X PUT -d 802
+
+echo "--------------------"
+
+echo "Sleep"
+sleep 5
+
+

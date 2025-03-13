@@ -1,0 +1,4 @@
+opcua-url: "opc.tcp://opcua-testserver:4840/freeopcua/server/"
+nuclio-url: "http://192.168.49.2"
+prediction-port: 30484
+orion-url: "orion:1026"

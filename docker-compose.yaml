@@ -1,0 +1,90 @@
+version: '3'
+
+services:
+  opcua-gateway:
+    build: ./opcua-gateway
+    image: opcua-gateway
+    environment:
+      - CONFIG_PATH=./internal/config/config.yml
+    ports:
+      - "8880:8880"
+  opcua-testserver:
+    build: ./prototype/server
+    image: opcua-testserver
+    ports:
+      - "4840:4840"
+  scheduler:
+    build: ./scheduler  
+    image: test-scheduler
+    ports:
+      - "5000:5000"
+  orion:
+    image: fiware/orion-ld:latest
+    ports:
+      - "1026:1026"
+    command: -logLevel DEBUG -noCache -dbhost mongo
+    depends_on:
+      - mongo
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://0.0.0.0:1026/version"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+
+  quantumleap:
+    image: orchestracities/quantumleap:${QL_VERSION:-1.0.0}
+    ports:
+      - "8668:8668"
+    depends_on:
+      - mongo
+      - orion
+      - crate
+    environment:
+      - CRATE_HOST=${CRATE_HOST:-crate}
+      - USE_GEOCODING=True
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOGLEVEL=INFO
+
+  mongo:
+    image: mongo:${MONGO_VERSION:-4.4}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+
+  crate:
+    image: crate:${CRATE_VERSION:-4.6.7}
+    command: crate -Cauth.host_based.enabled=false
+      -Ccluster.name=democluster -Chttp.cors.enabled=true -Chttp.cors.allow-origin="*"
+    environment:
+      - LOG4J_FORMAT_MSG_NO_LOOKUPS=true
+    ports:
+      # Admin UI
+      - "4200:4200"
+      # Transport protocol
+      - "4300:4300"
+    volumes:
+      - cratedata:/data
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - crate
+
+  redis:
+    image: redis:${REDIS_VERSION:-6.2.3}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+volumes:
+  mongodata: ~
+  cratedata: ~
+  redisdata: ~
+
+networks:
+    default:

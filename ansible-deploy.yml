@@ -1,0 +1,87 @@
+---
+- name: Deploy Project on Minikube
+  hosts: localhost
+  connection: local
+
+  tasks:
+
+  # nuclio
+
+  - name: Check if Nuclio is already installed
+    command: kubectl get namespace nuclio
+    register: nuclio_namespace_check
+    failed_when: false  # Don't fail the playbook if the namespace doesn't exist
+    changed_when: false  # Don't mark this task as changed
+
+  - name: Check if registry:2 container is running
+    shell: eval $(minikube docker-env) && docker ps --filter "ancestor=registry:2"
+    register: registry_container_info
+
+  - name: Start Docker Registry on Minikube (only if not running)
+    command: minikube ssh -- docker run -d -p 5000:5000 registry:2
+    when: "'Up' not in registry_container_info.stdout"
+
+  - name: Install Nuclio on Minikube
+    command: minikube kubectl -- create namespace nuclio
+    when: nuclio_namespace_check.rc != 0
+
+  - name: Install Nuclio on Minikube
+    block:
+      - command: helm repo add nuclio https://nuclio.github.io/nuclio/charts
+      - command: helm --namespace nuclio install nuclio nuclio/nuclio
+
+  - name: Build Base Image for Nuclio Functions
+    command: docker build -t my-nuclio-base:latest ./nuclio-functions/prediction
+
+  - name: Deploy Nuclio Functions
+    shell: "nuctl deploy -n nuclio --path {{ item.path }} --http-trigger-service-type NodePort --registry $(minikube ip):5000 --run-registry localhost:5000"
+    with_items:
+      - { path: '/home/davestar/master-thesis/master-thesis/nuclio-functions/prediction' } 
+
+# Application stuff
+
+  - name: Get Minikube IP
+    shell: minikube ip
+    register: minikube_ip
+
+  - name: Get nuclio-prediction2 service port
+    shell: "minikube kubectl -- get service -n nuclio | grep nuclio-prediction2 | awk '{print $5}' | cut -d: -f2 | cut -d/ -f1"
+    register: nuclio_service_port
+
+  - name: Template gateway ConfigMap
+    template:
+      src: k8s-gateway-config.yaml.j2
+      dest: ./k8s/k8s-gateway-config.yml 
+
+  - name: Build OPC UA Gateway and Test Server Images
+    command: docker build -t {{ item.name }}:latest {{ item.context }}
+    with_items:
+      - { name: 'opcua-gateway', context: './opcua-gateway' }
+      - { name: 'opcua-test-server', context: './prototype/server' }
+
+  - name: Tag Images for Minikube Registry
+    command: docker tag {{ item.original }}:latest {{ minikube_ip.stdout }}:5000/{{ item.name }}:latest
+    with_items:
+      - { original: 'opcua-gateway', name: 'opcua-gateway' }
+      - { original: 'opcua-test-server', name: 'opcua-test-server' }
+
+  - name: Configure Docker to Use Minikube's Environment
+    shell: eval $(minikube docker-env)
+
+  - name: Push Images to Minikube Registry
+    command: docker push {{ minikube_ip.stdout }}:5000/{{ item.name }}:latest
+    with_items:
+      - { name: 'opcua-gateway' }
+      - { name: 'opcua-test-server' }
+
+  - name: Deploy OPC UA Gateway and Test Server
+    command: minikube kubectl -- apply -f ./k8s
+
+  - name: Get NodePort for OPC UA Gateway
+    command: minikube kubectl -- get service opcua-gateway-service -o jsonpath='{.spec.ports[0].nodePort}'
+    register: opcua_gateway_nodeport
+
+  - name: Display OPC UA Gateway Access Information
+    debug:
+      msg: "OPC UA Gateway is accessible at: http://{{ minikube_ip.stdout }}/, See README for more details about specific (curl-)commands" 
+

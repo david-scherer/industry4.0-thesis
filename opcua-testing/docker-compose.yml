@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  # OPC UA Server
+  opcua-server:
+    image: opcua_server  # Replace with your server image name
+    build:
+      context: ./server
+    ports:
+      - 4840:4840  # Map container port 4840 to host port 4840 (OPC UA default)
+    # (Optional) Additional server configuration (volumes, environment variables)
+
+  # OPC UA Client
+  opcua-client:
+    image: opcua_client # Replace with your client image name
+    build:
+      context: ./client
+
+    environment:
+      OPCUA_SERVER: opc.tcp://opcua-server:4840/freeopcua/server/
+
+    depends_on:
+      - opcua-server  # Wait for server to be ready before starting client

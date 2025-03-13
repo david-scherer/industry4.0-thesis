@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+data:
+  config.yml: |
+    opcua-url: "opc.tcp://opcua-test-server-service:4840/freeopcua/server/"
+    nuclio-url: "http://{{ minikube_ip.stdout }}"
+    prediction-port: {{ nuclio_service_port.stdout }}
