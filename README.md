@@ -6,7 +6,7 @@ The nuclio-functions directory contains code and configurations for various nucl
 
 Prototype contains a test implementation for a OPC UA client and more importantly a UPC UA server, where the latter is used for local testing (run as docker container). This is also used in the ansible deployment, the node id on this used for testing is `ns=2;i=2`
 
-![alt text](architecture-overview.png)
+![alt text](architecture-design.png)
 
 # Nuclio
 ## Deployment of Nuclio iteself
